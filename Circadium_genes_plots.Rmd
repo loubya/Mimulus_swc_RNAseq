@@ -1,0 +1,130 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+APRR5er running the Differential Expression with Limma-Voom
+
+PRR5:
+```{r}
+PRR5<-c("Migut.F00152.v2.0","Migut.F00987.v2.0")
+PRR5_cpm <- t(cpm_GCfiltered[PRR5,])
+
+PRR5_data <- as.data.frame(PRR5_cpm)
+PRR5_data <- cbind(PRR5_data,ZT,condition)
+
+# Convert to data.table
+library(data.table)
+setDT(PRR5_data, keep.rownames = TRUE)[]
+
+colnames(PRR5_data)[which(names(PRR5_data) == "rn")] <- "Samples"
+
+PRR5_data$tmp <- PRR5_data$Samples
+
+#
+library(tidyr)
+PRR5_data <- separate(PRR5_data, tmp, c("geno", "group","replicate")) 
+PRR5_data$geno <- NULL
+
+# For Migut.F00152
+PRR51_means<- tapply(PRR5_data$Migut.F00152.v2.0, PRR5_data$group,mean)
+PRR51_means_data = data.frame(PRR51_means)
+condition2 <- rep (c("c","f"), each = 9)
+PRR51_means_data $condition <- condition2
+
+ZT2 <- rep(ZT_vector, 2)
+PRR51_means_data $ZT <- ZT2
+
+
+library(ggplot2)
+P_PRR51 <- ggplot(data=PRR5_data, aes(x = PRR5_data$ZT,y= PRR5_data$Migut.F00152.v2.0)) +
+  geom_point(aes(color=condition)) 
+
+P_PRR51 + geom_line(data=PRR51_means_data,aes(x=ZT,y=PRR51_means, color=condition)) 
+
+
+###############
+
+# For Migut.F00987.v2.0
+PRR52_means<- tapply(PRR5_data$Migut.F00987.v2.0, PRR5_data$group,mean)
+PRR52_means_data = data.frame(PRR52_means)
+condition2 <- rep (c("c","f"), each = 9)
+PRR52_means_data $condition <- condition2
+
+ZT2 <- rep(ZT_vector, 2)
+PRR52_means_data $ZT <- ZT2
+
+
+library(ggplot2)
+P_PRR52 <- ggplot(data=PRR5_data, aes(x = PRR5_data$ZT,y= PRR5_data$Migut.F00987.v2.0)) +
+  geom_point(aes(color=condition)) 
+
+P_PRR52 + geom_line(data=PRR52_means_data,aes(x=ZT,y=PRR52_means, color=condition)) 
+
+```
+```{r}
+#test 
+PRR5_target<-c("PRR5_data$Migut.F00152.v2.0","PRR5_data$Migut.F00987.v2.0") 
+fun=function(x) x
+All_PRR5_means<- tapply(fun(PRR5_data$PRR5), PRR5_data$group,mean)
+fun(sub_sample_info$y)
+
+```
+
+
+
+
+
+
+
+
+```{r}
+# Glimpse of the CO result:
+
+ZT_vector <- c(14,17,20,23,2,5,8,11,14)
+ZT <- rep(rep(ZT_vector, each=4),2)
+
+condition <- rep (c("c","f"), each = 36)
+# CO:
+CO<-c("Migut.H00566.v2.0","Migut.M01461.v2.0")
+CO_cpm <- t(cpm_GCfiltered[CO,])
+
+CO_data <- as.data.frame(CO_cpm)
+CO_data <- cbind(CO_data,ZT,condition)
+
+# Convert to data.table
+library(data.table)
+setDT(CO_data, keep.rownames = TRUE)[]
+
+colnames(CO_data)[which(names(CO_data) == "rn")] <- "Samples"
+
+CO_data$tmp <- CO_data$Samples
+
+#
+library(tidyr)
+CO_data <- separate(CO_data, tmp, c("geno", "group","replicate")) 
+CO_data$geno <- NULL
+
+
+# For Migut.N02951
+CO1_means<- tapply(CO_data$Migut.H00566.v2.0, CO_data$group,mean)
+CO1_means_data = data.frame(CO1_means)
+condition2 <- rep (c("c","f"), each = 9)
+CO1_means_data $condition <- condition2
+
+ZT2 <- rep(ZT_vector, 2)
+CO1_means_data $ZT <- ZT2
+
+
+library(ggplot2)
+P_CO1 <- ggplot(data=CO_data, aes(x = CO_data$ZT,y= CO_data$Migut.H00566.v2.0)) +
+  geom_point(aes(color=condition)) 
+
+P_CO1 + geom_line(data=CO1_means_data,aes(x=ZT,y=CO1_means, color=condition)) 
+
+
+
+
+```
+
+

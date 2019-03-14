@@ -1,0 +1,207 @@
+# 0. Loading packages
+```{r}
+library(edgeR)
+library(data.table)
+
+```
+
+
+# 1. PreProcessing
+### Import the data and creat a DGEList object:
+```{r}
+counts <- read.delim("C:/Users/Po-Kai/Dropbox/Working/Mimulus_project/RNAseq/all_counts.txt", row.names = 1)
+
+d0 <- DGEList(counts)
+
+# Add sample-level info:
+group <- as.factor(c(paste("c",rep(1:9, each=4), sep=""),paste("f",rep(1:9, each=4), sep="")))
+d0$samples$group <- group
+
+ZT_vector <- c(14,17,20,23,2,5,8,11,14)
+ZT <- rep(rep(ZT_vector, each=4),2)
+d0$samples$ZT <- ZT
+
+trt <- as.factor(c(rep(c("c","f"),each=36)))
+d0$samples$trt <- trt
+
+```
+
+### Filter the data:
+Filter low-expressed genes: At least has 1 cpm (~3.4 reads) in one of the 72 samples.
+```{r}
+cutoff <- 1
+drop <- which(apply(cpm(d0), 1, max) < cutoff)
+d_GC <- d0[-drop,] 
+dim(d_GC) # number of genes left
+```
+
+> May be too relaxed. (28140 genes -> 21731 genes)
+
+### Normalized the data
+```{r}
+d_GC <- calcNormFactors(d_GC)
+```
+
+# 2. Subset the data
+```{r}
+genes <- c("Migut.N01518.v2.0",
+           "Migut.D01764.v2.0", "Migut.I00209.v2.0",
+           "Migut.F00152.v2.0", "Migut.F00987.v2.0",
+           "Migut.L01650.v2.0", "Migut.J00402.v2.0")
+
+cpm_GCfiltered <- as.data.frame(cpm(d_GC))
+pre_target<-cpm_GCfiltered[row.names(cpm_GCfiltered)%in%genes,]
+
+# transpose
+target <- transpose(pre_target)
+
+# get row and colnames in order
+colnames(target) <- rownames(pre_target)
+rownames(target) <- colnames(pre_target)
+
+
+target$ZT<-ZT
+target$trt <- trt
+target$group <- group
+```
+
+
+# 3. Plots!
+### LHY
+```{r}
+gene.now <- "Migut.N01518.v2.0"
+means<- tapply(target[,gene.now], target$group,mean)
+means_data = data.frame(means)
+trt2 <- rep (c("c","f"), each = 9)
+means_data$trt <- trt2
+
+ZT2 <- rep(ZT_vector, 2)
+means_data$ZT <- ZT2
+
+
+library(ggplot2)
+ggplot(data=target, aes(x = target$ZT,y= target[,gene.now])) +
+  geom_point(aes(color=trt)) +
+  geom_line(data=means_data,aes(x=ZT,y=means, color=trt)) 
+
+
+```
+
+### TOC1: Migut.D01764
+```{r}
+gene.now <- "Migut.D01764.v2.0"
+means<- tapply(target[,gene.now], target$group,mean)
+means_data = data.frame(means)
+trt2 <- rep (c("c","f"), each = 9)
+means_data$trt <- trt2
+
+ZT2 <- rep(ZT_vector, 2)
+means_data$ZT <- ZT2
+
+
+library(ggplot2)
+ggplot(data=target, aes(x = target$ZT,y= target[,gene.now])) +
+  geom_point(aes(color=trt)) +
+  geom_line(data=means_data,aes(x=ZT,y=means, color=trt)) 
+
+
+```
+
+### TOC1: Migut.I00209
+```{r}
+gene.now <- "Migut.I00209.v2.0"
+means<- tapply(target[,gene.now], target$group,mean)
+means_data = data.frame(means)
+trt2 <- rep (c("c","f"), each = 9)
+means_data$trt <- trt2
+
+ZT2 <- rep(ZT_vector, 2)
+means_data$ZT <- ZT2
+
+
+library(ggplot2)
+ggplot(data=target, aes(x = target$ZT,y= target[,gene.now])) +
+  geom_point(aes(color=trt)) +
+  geom_line(data=means_data,aes(x=ZT,y=means, color=trt)) 
+
+
+```
+
+### PRR5: Migut.F00152
+```{r}
+gene.now <- "Migut.F00152.v2.0"
+means<- tapply(target[,gene.now], target$group,mean)
+means_data = data.frame(means)
+trt2 <- rep (c("c","f"), each = 9)
+means_data$trt <- trt2
+
+ZT2 <- rep(ZT_vector, 2)
+means_data$ZT <- ZT2
+
+
+library(ggplot2)
+ggplot(data=target, aes(x = target$ZT,y= target[,gene.now])) +
+  geom_point(aes(color=trt)) +
+  geom_line(data=means_data,aes(x=ZT,y=means, color=trt)) 
+
+
+```
+### PRR5: Migut.F00987
+```{r}
+gene.now <- "Migut.F00987.v2.0"
+means<- tapply(target[,gene.now], target$group,mean)
+means_data = data.frame(means)
+trt2 <- rep (c("c","f"), each = 9)
+means_data$trt <- trt2
+
+ZT2 <- rep(ZT_vector, 2)
+means_data$ZT <- ZT2
+
+
+library(ggplot2)
+ggplot(data=target, aes(x = target$ZT,y= target[,gene.now])) +
+  geom_point(aes(color=trt)) +
+  geom_line(data=means_data,aes(x=ZT,y=means, color=trt)) 
+
+
+```
+
+### PRR7: Migut.L01650
+```{r}
+gene.now <- "Migut.L01650.v2.0"
+means<- tapply(target[,gene.now], target$group,mean)
+means_data = data.frame(means)
+trt2 <- rep (c("c","f"), each = 9)
+means_data$trt <- trt2
+
+ZT2 <- rep(ZT_vector, 2)
+means_data$ZT <- ZT2
+
+
+library(ggplot2)
+ggplot(data=target, aes(x = target$ZT,y= target[,gene.now])) +
+  geom_point(aes(color=trt)) +
+  geom_line(data=means_data,aes(x=ZT,y=means, color=trt)) 
+
+
+```
+
+### PRR7: Migut.J00402
+```{r}
+gene.now <- "Migut.J00402.v2.0"
+means<- tapply(target[,gene.now], target$group,mean)
+means_data = data.frame(means)
+trt2 <- rep (c("c","f"), each = 9)
+means_data$trt <- trt2
+
+ZT2 <- rep(ZT_vector, 2)
+means_data$ZT <- ZT2
+
+
+library(ggplot2)
+ggplot(data=target, aes(x = target$ZT,y= target[,gene.now])) +
+  geom_point(aes(color=trt)) +
+  geom_line(data=means_data,aes(x=ZT,y=means, color=trt)) 
+
+
+```
