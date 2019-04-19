@@ -1,0 +1,613 @@
+---
+title: "Differential Expression with Limma-Voom"
+output: html_document
+---
+I refer to the R Markdown file provided by Genome Center in 2018 and the tutorial article (RNA-seq analysis is easy as 1-2-3 with limma, Glimma and edgeR [version 3; referees: 3 approved].)
+
+For more details, please check those references.
+
+# 1. Set up:
+
+### Install the edgeR package 
+```{r}
+# source("https://bioconductor.org/biocLite.R")
+# biocLite("edgeR")
+```
+
+
+### Load the edgeR package (and all other packaged will be used)
+```{r}
+library(edgeR)
+
+library(RColorBrewer)
+```
+
+
+### Read in the counts table
+```{r}
+counts <- read.delim("C:/Users/Po-Kai/Dropbox/Working/Mimulus_project/RNAseq/all_counts.txt", row.names = 1)
+
+head(counts)
+```
+> For import several files, use the `readDGE` function in edgeR. 
+
+
+### Create DGEList object
+```{r}
+# Convert read counts into a DGEList-object:
+d0 <- DGEList(counts)
+
+
+# Check the DGEList:
+class(d0)
+
+dim(d0)
+
+
+# Add sample-level info:
+d0$samples$group <- as.factor(c(paste("c",rep(1:9, each=4), sep=""),paste("f",rep(1:9, each=4), sep="")))
+
+ZT_vector <- c(14,17,20,23,2,5,8,11,14)
+d0$samples$ZT <- rep(rep(ZT_vector, each=4),2)
+
+d0$samples$trt <- as.factor(c(rep(c("c","f"),each=36)))
+
+
+# Check the `samples` data in DGEList-object:
+d0$samples[1:5,]
+```
+> My Mimulus data contain 28,140 genes and 72 samples.
+
+> Library sizes are automatically calculated and normalisation factors are set to 1.
+
+> Maybe I can include the treatments in the `group` in `samples` data? 20190419: Yes! Done.
+
+> If using the `readDGE` function to read in several files, the `samples` data in DGEList-object have to be further organized. At least, you may want to change the sample names (e.g. using the `subsring` function).
+
+
+# 2. Data pre-processing: filtering
+
+### Transformation from the raw-scale (mentioned in tutorial article)
+Use the counts per million (CPM) because we are only interested in gene expression changes between conditions.
+
+- I am not going to compare across genes
+
+- assuming there are no differences in isoform usage between conditions
+
+```{r}
+# CPM
+cpm_d0 <- cpm(d0) 
+
+# log-CPM
+lcpm_d0 <- cpm(d0, log=TRUE)
+
+summary(lcpm_d0)
+
+# L: average library size in millions
+L <-mean (d0$samples$lib.size) * 1e-6
+# M: median of library size in millions
+M <- median(d0$samples$lib.size) * 1e-6
+
+c(L,M)
+```
+> A count of 0 for my data should map to a log-CPM value of log2(2/3.426034)=-0.7765394, according to the manual. However, I got -3.777 here??? 
+
+
+### Removing genes that are lowly expressed: using filterByExpr (mentioned in tutorial article)
+
+1. Check how many genes have zero counts across all samples:
+```{r}
+table(rowSums(d0$counts==0)==9)
+```
+In my case, there are only 0.5% of genes have 0 counts! (so low!)
+
+
+2. Then, use the `filterByExpr` function in the `edgeR` package to do the filtering.
+```{r}
+keep.exprs <- filterByExpr(d0,group=d0$samples$group)
+#keep.exprs <- filterByExpr(d0)
+# These two are the same if I've set the `group=d0$samples$group`.
+
+d0_filterByExpr <- d0[keep.exprs, , keep.lib.sizes=FALSE]
+dim(d0_filterByExpr)
+
+```
+I call the filtered result as "d0_filterByExpr". After filtering, there are 14058 genes left (~50%). (w/o experimental variables in `sample` data frame.)
+
+> Do I have to include the `group` in filterByExpr? 20190419: Yes! 
+> After including the experimental variables in `sample` data frame, there are 17912 genes left. 
+
+
+> According to the tutorial, the `filterByExpr` keeps genes that have a CPM of 10/3.274036=3.1 or more in at least 3 (or 4, my replicate number?) samples.
+
+
+3. Visualization the result of filtering
+
+```{r}
+# Calculate the approximate cutoff
+lcpm.cutoff <- log2(10/M + 2/L)
+
+# Set some parameters for drawing the figure
+nsamples <- ncol(d0)
+samplenames <- colnames(d0)
+
+# Set the color and expand the palette:
+#col <- brewer.pal(nsamples, "Paired") # Paired only has 12 colors
+col <- samplenames
+col <- as.factor(col)
+getPalette_1 = colorRampPalette(brewer.pal(12, "Paired")) # Expand the palette
+levels(col)<- getPalette_1(nlevels(col))
+col <- as.character(col)
+
+
+par(mfrow=c(1,2))
+# Raw data:
+plot(density(lcpm_d0[,1]), col=col[1], lwd=2, ylim=c(0,0.4), las=2, main="", xlab="")
+title(main="A. Raw data", xlab="Log-cpm")
+abline(v=lcpm.cutoff, lty=3)
+for (i in 2:nsamples){
+  den <- density(lcpm_d0[,i])
+  lines(den$x, den$y, col=col[i], lwd=2)
+}
+#legend("topright", samplenames, text.col=col, bty="n")
+# Too many sample names...so I will not show them.
+
+
+# Filtered data
+lcpm_filterByExpr <- cpm(d0_filterByExpr, log=TRUE)
+plot(density(lcpm_filterByExpr[,1]), col=col[1], lwd=2, ylim=c(0,0.4), las=2, main="", xlab="")
+title(main="B. Filtered data", xlab="Log-cpm")
+abline(v=lcpm.cutoff, lty=3)
+for (i in 2:nsamples){
+  den <- density(lcpm_filterByExpr[,i])
+  lines(den$x, den$y, col=col[i], lwd=2)
+}
+#legend("topright", samplenames, text.col=col, bty="n")
+# Too many sample names...so I will not show them.
+```
+> 20190419: It seems adding the info of experimental variables helps! There are some low expressed genes left and I think it is possible that represents some genes only highly expressed at certain time points but lowly expressed at the other. Remember, I have time course data! Check some key core genes for circadian rhythm! 
+
+
+### Removing genes that are lowly expressed: using the way mentioned by Genome Center (mentioned in tutorial article)
+
+Filter low-expressed genes: At least has 1 cpm (~3.4 reads) in one of the 72 samples.
+> However, I would like to use the data filtered by filterByExpr first.
+
+> 21090305 Note: the filterByExpr is too stringent for my data...
+
+> 20190419: Fix(?) the `filterByExpr` issue. I thought using 1 cpm as cutoff is too relaxed...
+
+```{r}
+cutoff <- 1
+drop <- which(apply(cpm(d0), 1, max) < cutoff)
+d_GC <- d0[-drop,] 
+dim(d_GC) # number of genes left
+```
+"Low-expressed" is subjective and depends on the dataset.
+
+Using this method, lot of genes are retained: 21731/2814 = 77%
+
+20190305: 這像是edgeR的filter方法 要再看看
+
+
+```{r}
+par(mfrow=c(1,2))
+
+
+# Raw data:
+plot(density(lcpm_d0[,1]), col=col[1], lwd=2, ylim=c(0,0.4), las=2, main="", xlab="")
+title(main="A. Raw data", xlab="Log-cpm")
+abline(v=lcpm.cutoff, lty=3)
+for (i in 2:nsamples){
+  den <- density(lcpm_d0[,i])
+  lines(den$x, den$y, col=col[i], lwd=2)
+}
+#legend("topright", samplenames, text.col=col, bty="n")
+
+
+# Filtered data
+lcpm_GC <- cpm(d_GC, log=TRUE)
+plot(density(lcpm_GC[,1]), col=col[1], lwd=2, ylim=c(0,0.4), las=2, main="", xlab="")
+title(main="B. Filtered data", xlab="Log-cpm")
+abline(v=lcpm.cutoff, lty=3)
+for (i in 2:nsamples){
+  den <- density(lcpm_GC[,i])
+  lines(den$x, den$y, col=col[i], lwd=2)
+}
+#legend("topright", samplenames, text.col=col, bty="n")
+
+```
+> But after visualization, I found that some low-expressed gene are retained...
+
+
+# 3. Data pre-processing: Normalizing gene expression distributions
+In this section, I will work on the filtered data following the guide of tutorial (using `filterByExpr`).
+
+Calculate normalization factors
+```{r}
+d0_filterByExpr <- calcNormFactors(d0_filterByExpr)
+
+# Take a look of the normalization factors:
+d0_filterByExpr$samples$norm.factors
+
+# Check which method is the default:
+#d1 <- calcNormFactors(d0, method = "TMM")
+#d2 <- calcNormFactors(d0, method = "RLE")
+#d1$samples$norm.factors
+#d2$samples$norm.factors
+```
+
+Note: calcNormFactors doesn't _normalize_ the data, it just calculates normalization factors for use downstream.
+
+> TMM is the default.
+
+> For this data set, the TMM-normalization is mild: the normalization factors are close to 1.
+
+
+Test: To give a better visual representation of the effects of normalization:
+```{r}
+# Duplicate the data:
+d_test <- d0_filterByExpr
+
+# Set the normalization factors as 1:
+d_test$samples$norm.factors <- 1
+
+# Reduce the first sample to 5% of their original values: use ceiling so that I will get integers.
+d_test$counts[,1] <- ceiling (d_test$counts[,1]*0.05)
+
+# Inflate the second sample to be 5-times larger:
+d_test$counts[,2] <- d_test$counts[,2]*5
+
+# Check the normalization factors:
+head(d_test$counts)
+
+# Normalizing and visualizing:
+par(mfrow=c(1,2))
+lcpm_d_test <- cpm(d_test, log=TRUE)
+boxplot(lcpm_d_test, las=2, col=col, main="")
+title(main="A. Example: Unnormalised data", ylab="Log-cpm")
+d_test <- calcNormFactors(d_test)
+d_test$samples$norm.factors
+
+lcpm_d_test2 <- cpm(d_test, log=TRUE)
+boxplot(lcpm_d_test2, las=2, col=col, main="")
+title(main="B. Example: Normalised data", ylab="Log-cpm")
+
+```
+> The plot is ugly because I have 72 samples...But I can still see the effect of normalizaiton!
+
+> lcpm is automatically normalized using the `norm.factors`!
+
+> Check lcpm_d_test[1:5,1:5] and lcpm_d_test2[1:5,1:5] to compare the lcpm before and after normalization!
+
+
+# 4. Data pre-processing: MDS plot
+
+### Prepare for the plot:
+```{r}
+lcpm_filtered <- cpm(d0_filterByExpr, log=T)
+
+# Set up some parameters will be used later
+snames <- colnames(counts) # Sample names
+#snames
+
+temp <- substr(snames,  5, nchar(snames) - 3) 
+#temp
+
+time <- substr(snames, nchar(snames) - 2, nchar(snames) - 2)
+#time
+
+# Create a new variable "group" that combines temp and time:
+group <- interaction(temp, time)
+#group
+
+# Colors:
+col.group <- group
+getPalette = colorRampPalette(brewer.pal(8, "Dark2")) # Expand the palette
+levels(col.group)<- getPalette(nlevels(col.group))
+col.group <- as.character(col.group)
+
+
+```
+
+Note: you can also enter group information manually, or read it in from an external file.  If you do this, it is $very, very, very$ important that you make sure the metadata is in the same order as the column names of the counts table.
+
+
+### Multidimensional scaling (MDS) plot 
+```{r}
+# Colored by 18 groups:
+plotMDS(d0_filterByExpr, col = col.group)
+plotMDS(d0_filterByExpr, col = rainbow(18))
+# Choose top 50 rather than top 500 (default)
+plotMDS(d0_filterByExpr, top = 50, col = col.group)
+
+
+# Colored by sampling time: 
+plotMDS(d0_filterByExpr, col = as.numeric(time))
+# Choose top 50 rather than top 500 (default)
+plotMDS(d0_filterByExpr, top = 50, col = as.numeric(time))
+
+
+par(mfrow=c(1,2))
+plotMDS(d0_filterByExpr, top = 1000, col = col.group)
+plotMDS(d0_filterByExpr, top = 1000, col = col.group, prior.count = 5)
+
+
+```
+> The plot colored by 18 groups is confusing because the result is too dispersive. 
+
+> By the way, the color set generated by `colorRampPalette` is quite ugly...lol
+
+> The "c" and "f" trt are almost indistinguishable!
+
+> If only using top 50 genes, the difference seems to become smaller...
+
+> In my case, adjusting the `prior.count` from 2 to 5 makes no difference.
+
+
+# 5. Make some targeted gene plots: 
+**Check FT and GI first!**
+
+### Use the data filtered by `filterByExpr`
+
+Check if FT and GI exist in my data frame.
+```{r}
+#FT
+#any(row.names(lcpm_filtered) == 'Migut.F01843.v2.0')
+# I prefer this one:
+FT<-c("Migut.F01843.v2.0","Migut.F02091.v2.0", "Migut.F02093.v2.0")
+FT %in% row.names(lcpm_filtered)
+
+# GI
+GI <- c("Migut.N02951.v2.0","Migut.C00380.v2.0")
+GI %in% row.names(lcpm_filtered)
+
+```
+20190305: I cannot use the lcpm_filterByExpr because Migut.F01843.v2.0 (FT) was filtered out...
+20190419: After adding the info of experimental variables, the FT will be preserved!
+
+
+Get cpm and lcpm:
+```{r}
+# Get the results using the filtering method provided by genome center
+lcpm_filtered <- cpm(d0_filterByExpr, log=T)
+cpm_filtered <- cpm(d_GC)
+```
+
+
+For GI:
+```{r}
+# Set up some variables:
+#ZT_vector <- c(14,17,20,23,2,5,8,11,14)
+ZT_vector <- c(-10,-7,-4,-1,2,5,8,11,14)
+ZT <- rep(rep(ZT_vector, each=4),2)
+
+condition <- rep (c("c","f"), each = 36)
+
+
+# Extract the GI data:
+GI_data <- as.data.frame(t(lcpm_filtered[GI,]))
+GI_data <- cbind(GI_data,ZT,condition)
+
+# Convert to data.table
+library(data.table)
+setDT(GI_data, keep.rownames = TRUE)[]
+colnames(GI_data)[which(names(GI_data) == "rn")] <- "Samples"
+
+
+# Add the info of group and replicate:
+library(tidyr)
+GI_data$tmp <- GI_data$Samples
+GI_data <- separate(GI_data, tmp, c("geno", "group","replicate")) 
+GI_data$geno <- NULL
+
+
+# For Migut.N02951
+means <- tapply(GI_data$Migut.N02951.v2.0,GI_data$group,mean)
+mean_data = data.frame(means)
+
+condition2 <- rep (c("c","f"), each = 9)
+mean_data$condition <- condition2
+
+ZT2 <- rep(ZT_vector, 2)
+mean_data$ZT <- ZT2
+
+
+#tapply(GI_data$Migut.N02951.v2.0,GI_data$group,se)
+
+library(ggplot2)
+p <- ggplot(data=GI_data, aes(x = GI_data$ZT,y= GI_data$Migut.N02951.v2.0)) +
+  geom_point(aes(color=condition)) 
+
+p + geom_line(data=mean_data,aes(x=ZT,y=means, color=condition)) 
+
+
+# For Migut.C00380
+GI_means_2 <- tapply(GI_data$Migut.C00380.v2.0,GI_data$group,mean)
+GI_mean_data_2 = data.frame(GI_means_2)
+
+condition2 <- rep (c("c","f"), each = 9)
+GI_mean_data_2$condition <- condition2
+
+ZT2 <- rep(ZT_vector, 2)
+GI_mean_data_2$ZT <- ZT2
+
+#tapply(GI_data$Migut.N02951.v2.0,GI_data$group,se)
+
+library(ggplot2)
+GI_2 <- ggplot(data=GI_data, aes(x = GI_data$ZT,y= GI_data$Migut.C00380.v2.0)) +
+  geom_point(aes(color=condition)) 
+
+GI_2 + geom_line(data=GI_mean_data_2,aes(x=ZT,y=GI_means_2, color=condition)) 
+
+```
+20190419 note:
+> Using lcpm and data filtered by `filterByExpr`, I get the similar pattern of that using the filtering method provided by genome center. However, the drop at ZT5 is smaller.
+
+> Use the lcpm + filtering method provided by genome center to draw the figues again!!
+
+
+
+### Use the lcpm_GC
+```{r}
+# Get the results using the filtering method provided by genome center
+d_GC <- calcNormFactors(d_GC)
+lcpm_GCfiltered <- cpm(d_GC, log=T)
+cpm_GCfiltered <- cpm(d_GC)
+
+
+# Check if FT and GI exist in my data frame.
+FT %in% row.names(lcpm_GCfiltered)
+GI %in% row.names(lcpm_GCfiltered)
+
+
+# Set up some variables:
+#ZT_vector <- c(14,17,20,23,2,5,8,11,14)
+ZT_vector <- c(-10,-7,-4,-1,2,5,8,11,14)
+ZT <- rep(rep(ZT_vector, each=4),2)
+
+condition <- rep (c("c","f"), each = 36)
+
+
+# Extract the GI data:
+# Simply modify here and you can choose using cpm or lcpm!
+GI_data <- as.data.frame(t(cpm_GCfiltered[GI,]))
+GI_data <- cbind(GI_data,ZT,condition)
+
+# Convert to data.table
+library(data.table)
+setDT(GI_data, keep.rownames = TRUE)[]
+colnames(GI_data)[which(names(GI_data) == "rn")] <- "Samples"
+
+
+# Add the info of group and replicate:
+library(tidyr)
+GI_data$tmp <- GI_data$Samples
+GI_data <- separate(GI_data, tmp, c("geno", "group","replicate")) 
+GI_data$geno <- NULL
+
+
+# For Migut.N02951
+means <- tapply(GI_data$Migut.N02951.v2.0,GI_data$group,mean)
+mean_data = data.frame(means)
+
+condition2 <- rep (c("c","f"), each = 9)
+mean_data$condition <- condition2
+
+ZT2 <- rep(ZT_vector, 2)
+mean_data$ZT <- ZT2
+
+
+#tapply(GI_data$Migut.N02951.v2.0,GI_data$group,se)
+
+library(ggplot2)
+p <- ggplot(data=GI_data, aes(x = GI_data$ZT,y= GI_data$Migut.N02951.v2.0)) +
+  geom_point(aes(color=condition)) 
+
+p + geom_line(data=mean_data,aes(x=ZT,y=means, color=condition)) 
+
+
+# For Migut.C00380
+GI_means_2 <- tapply(GI_data$Migut.C00380.v2.0,GI_data$group,mean)
+GI_mean_data_2 = data.frame(GI_means_2)
+
+condition2 <- rep (c("c","f"), each = 9)
+GI_mean_data_2$condition <- condition2
+
+ZT2 <- rep(ZT_vector, 2)
+GI_mean_data_2$ZT <- ZT2
+
+#tapply(GI_data$Migut.N02951.v2.0,GI_data$group,se)
+
+library(ggplot2)
+GI_2 <- ggplot(data=GI_data, aes(x = GI_data$ZT,y= GI_data$Migut.C00380.v2.0)) +
+  geom_point(aes(color=condition)) 
+
+GI_2 + geom_line(data=GI_mean_data_2,aes(x=ZT,y=GI_means_2, color=condition)) 
+
+
+```
+20190419 note:
+> Indeed, the drop at ZT=5 disappears if using lcpm!
+
+
+
+```{r}
+# Glimpse of the FT result:
+# Simply modify here and you can choose using cpm or lcpm!
+FT_data <- as.data.frame(t(lcpm_GCfiltered[FT,]))
+FT_data <- cbind(FT_data,ZT,condition)
+
+
+# Convert to data.table
+library(data.table)
+setDT(FT_data, keep.rownames = TRUE)[]
+colnames(FT_data)[which(names(FT_data) == "rn")] <- "Samples"
+
+
+# Add the info of group and replicate:
+library(tidyr)
+FT_data$tmp <- FT_data$Samples
+FT_data <- separate(FT_data, tmp, c("geno", "group","replicate")) 
+FT_data$geno <- NULL
+
+
+# For Migut.F01843
+FT1_means<- tapply(FT_data$Migut.F01843.v2.0, FT_data$group,mean)
+FT1_means_data = data.frame(FT1_means)
+
+condition2 <- rep (c("c","f"), each = 9)
+FT1_means_data $condition <- condition2
+
+ZT2 <- rep(ZT_vector, 2)
+FT1_means_data $ZT <- ZT2
+
+#tapply(GI_data$Migut.N02951.v2.0,GI_data$group,se)
+
+
+library(ggplot2)
+P_FT1 <- ggplot(data=FT_data, aes(x = FT_data$ZT,y= FT_data$Migut.F01843.v2.0)) +
+  geom_point(aes(color=condition)) 
+
+P_FT1 + geom_line(data=FT1_means_data,aes(x=ZT,y=FT1_means, color=condition)) 
+
+
+# Add all the expression of 3 predicted orthologs:
+FT_data$FT_all = FT_data$Migut.F02091.v2.0 + FT_data$Migut.F01843.v2.0 + FT_data$Migut.F02093.v2.0
+
+FT2_means<- tapply(FT_data$FT_all, FT_data$group,mean)
+FT2_means_data = data.frame(FT2_means)
+
+condition2 <- rep (c("c","f"), each = 9)
+FT2_means_data $condition <- condition2
+
+ZT2 <- rep(ZT_vector, 2)
+FT2_means_data $ZT <- ZT2
+
+#tapply(GI_data$Migut.N02951.v2.0,GI_data$group,se)
+
+library(ggplot2)
+P_FT2 <- ggplot(data=FT_data, aes(x = FT_data$ZT,y= FT_data$FT_all)) +
+  geom_point(aes(color=condition)) 
+
+P_FT2 + geom_line(data=FT2_means_data,aes(x=ZT,y=FT2_means, color=condition)) 
+
+```
+> The differences of FT expression between samples can be very big comparing to GI!
+> This may reflect the variability of my sample. My swc plants didn't flower and grow very uniform in this experiment.
+
+
+### Addition notes (20190419):
+1. It seems to me that using the `filterByExpr` and filtering method provided by genome center provides almost the same results for GI in my case. Check the raw data.
+
+However, use the `filterByExpr`! Check the voom transformation and you will notice that y_GC needs to filter more. 
+
+```{r}
+mm <- model.matrix(~0 + group)
+y_GC <- voom(d_GC, mm, plot = T)
+y_FBE <- voom(d0_filterByExpr, mm, plot = T)
+```
+
+
+
+2. lcpm and cpm provide different flavor using the same data. Both are reasonable for my case. So be aware when trying to get some conclusions from the plots!
