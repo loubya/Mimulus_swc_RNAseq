@@ -1,3 +1,6 @@
+The goal of this script is to (a) extract the info of some core clock genes and flowering-related genes and to (b) visualize the expression patterns.
+
+
 # 0. Loading packages
 ```{r}
 library(edgeR)
@@ -13,34 +16,38 @@ counts <- read.delim("C:/Users/Po-Kai/Dropbox/Working/Mimulus_project/RNAseq/all
 
 d0 <- DGEList(counts)
 
+
 # Add sample-level info:
 group <- as.factor(c(paste("c",rep(1:9, each=4), sep=""),paste("f",rep(1:9, each=4), sep="")))
 d0$samples$group <- group
 
-ZT_vector <- c(14,17,20,23,2,5,8,11,14)
-ZT <- rep(rep(ZT_vector, each=4),2)
-d0$samples$ZT <- ZT
+#ZT_vector <- c(14,17,20,23,2,5,8,11,14)
+ZT_vector <- c(-10,-7,-4,-1,2,5,8,11,14)
+d0$samples$ZT <- rep(rep(ZT_vector, each=4),2)
 
 trt <- as.factor(c(rep(c("c","f"),each=36)))
 d0$samples$trt <- trt
 
 ```
 
+
 ### Filter the data:
-Filter low-expressed genes: At least has 1 cpm (~3.4 reads) in one of the 72 samples.
+Use the `filterByExpr` function in the `edgeR` package to do the filtering. (20190419)
 ```{r}
-cutoff <- 1
-drop <- which(apply(cpm(d0), 1, max) < cutoff)
-d_GC <- d0[-drop,] 
-dim(d_GC) # number of genes left
+keep.exprs <- filterByExpr(d0,group=d0$samples$group)
+#keep.exprs <- filterByExpr(d0)
+# These two are the same if I've set the `group=d0$samples$group`.
+
+d0_filterByExpr <- d0[keep.exprs, , keep.lib.sizes=FALSE]
+dim(d0_filterByExpr)
 ```
 
-> May be too relaxed. (28140 genes -> 21731 genes)
 
 ### Normalized the data
 ```{r}
-d_GC <- calcNormFactors(d_GC)
+d0_filterByExpr <- calcNormFactors(d0_filterByExpr)
 ```
+
 
 # 2. Subset the data
 ```{r}
@@ -126,6 +133,39 @@ ggplot(data=target, aes(x = target$ZT,y= target[,gene.now])) +
 
 
 ```
+
+
+### TOC1: Migut.I00209 (modified by Dan)
+```{r}
+gene.now <- "Migut.I00209.v2.0"
+make_timecourse_plot = function(gene.now, common_name = NULL){
+  means<- tapply(target[,gene.now], target$group,mean)
+  means_data = data.frame(means)
+  trt2 <- rep (c("c","f"), each = 9)
+  means_data$trt <- trt2
+  
+  ZT2 <- rep(ZT_vector, 2)
+  means_data$ZT <- ZT2
+  
+  
+  library(ggplot2)
+  p = ggplot(data=target, aes(x = target$ZT,y= target[,gene.now])) +
+    ggtitle(paste(gene.now,common_name)) +
+    geom_point(aes(color=trt)) +
+    geom_line(data=means_data,aes(x=ZT,y=means, color=trt)) 
+  p
+}
+```
+```{r}
+p = make_timecourse_plot("Migut.I00209.v2.0",'TOC1')
+print(p)
+make_timecourse_plot("Migut.F00152.v2.0",'PRR5')
+make_timecourse_plot("Migut.F00987.v2.0",'PRR5')
+
+
+```
+
+
 
 ### PRR5: Migut.F00152
 ```{r}

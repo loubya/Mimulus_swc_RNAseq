@@ -118,7 +118,7 @@ I call the filtered result as "d0_filterByExpr". After filtering, there are 1405
 > After including the experimental variables in `sample` data frame, there are 17912 genes left. 
 
 
-> According to the tutorial, the `filterByExpr` keeps genes that have a CPM of 10/3.274036=3.1 or more in at least 3 (or 4, my replicate number?) samples.
+> According to the tutorial, the `filterByExpr` keeps genes that have a CPM of 10/3.274036=3.1 or more in at least 4 (replicate number) samples.
 
 
 3. Visualization the result of filtering
@@ -188,7 +188,7 @@ dim(d_GC) # number of genes left
 Using this method, lot of genes are retained: 21731/2814 = 77%
 
 20190305: 這像是edgeR的filter方法 要再看看
-
+20190419: check the article: From reads to genes to pathways: differential expression analysis of RNA-Seq experiments using Rsubread and the edgeR quasi-likelihood pipeline [version 2; peer review: 5 approved]
 
 ```{r}
 par(mfrow=c(1,2))
