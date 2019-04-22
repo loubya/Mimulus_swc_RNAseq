@@ -12,6 +12,7 @@ sub_sample_info = droplevels(subset(sub_sample_info,Genotype == 'ColFRI' & Sampl
 exp = exp[,sub_sample_info$sample]
 
 
+# I don't have this file.
 temps = read.delim('~/Documents/Arabidopsis/Lianas_experiment/Bolting/Data/ACE_temp_profile.txt')
 ACE_22VarLD = subset(temps,Treatment == '22VarLD')[,-1]
 # Create a new empty column: "Hour" 
@@ -28,27 +29,32 @@ ACE_22VarLD_shift$Hour = ACE_22VarLD$Hour[-nrow(ACE_22VarLD)]
 ACE_22VarLD = rbind(ACE_22VarLD,ACE_22VarLD_shift)
 ACE_22VarLD = ACE_22VarLD[order(ACE_22VarLD$Hour),]
 
+
 # Create a function called "se" for calculating the standard error
 se = function(x) {
 	x = na.omit(x)
 	sd(x)/sqrt(length(x))
 }
-# These 2 function can make dataframe!
+# These two functions are prepared for transformation (but Dan didn't use them eventually). 
 transform_y = function(y,fun) fun(y)
 itransform_y = function(y,fun) fun(y)
+
 
 # The function for the plot?!
 timecourse_plot = function(gene,transcript,cols = c('red','blue'),fun=function(x) x,ifun = function(x) x){
 	# recover()
-	# It seems "y" is the gene names?
+	# Extract the expression level from the data set
   y = exp[transcript,]
-  # Set "y" in "sub_sample_info"
+  
+  # Working space in sub_sample_info:
 	sub_sample_info$y = y
+	
 	# Extract the data at ZT==0 and duplicate them. The duplicates are called ZT=24
 	sub_sample_info$ZT = as.numeric(as.character(sub_sample_info$ZT))
 	sub_sample_info_ZT24 = sub_sample_info[sub_sample_info$ZT==0,]
 	sub_sample_info_ZT24$ZT = 24
 	sub_sample_info = rbind(sub_sample_info,sub_sample_info_ZT24)
+	
 	# use the "fun" set up previously, here we can call the "y" in the "sub_sample_info" data.frame
 	# Calculate the mean and se for the samples (HOW does this loop???)
 	means = tapply(fun(sub_sample_info$y),list(sub_sample_info$ZT,sub_sample_info$Treatment),mean)
@@ -63,9 +69,15 @@ timecourse_plot = function(gene,transcript,cols = c('red','blue'),fun=function(x
 	mean_data$ymin = pmax(0,ifun(mean_data$ymin))
 	mean_data$ymax = ifun(mean_data$ymax)
 	# mean_data$ZT = factor(mean_data$ZT)
+	
 	# recover()
+	
+	# For the expression of Light and Dark:
 	light = data.frame(xmin = c(0,16),xmax = c(16,23.9),ymin=c(0,0),ymax = rep(max(sub_sample_info$y,mean_data$ymax),2)-.1,light=factor(c(1,0)),Hour=1,Temp=1)
+	
+	
 	mean_data = subset(mean_data,Treatment %in% unique(Treatment)[!is.na(cols)])
+	
 	p = ggplot(sub_sample_info) + ggtitle(paste(gene))
 	p = p + geom_rect(data=light,aes(xmin=xmin,xmax=xmax,ymin=ymin,ymax=ymax,fill=light)) + scale_fill_manual(values=c('0'='grey50','1'=NA))
 	p = p + geom_point(aes(x = ZT,y=y,color = Treatment)) + scale_color_manual(values=cols)
@@ -79,8 +91,10 @@ timecourse_plot = function(gene,transcript,cols = c('red','blue'),fun=function(x
 }	
 
 
+# I don't have this file.
 gene_list = read.csv('RNAseq_analysis/Gene_list.csv',stringsAsFactors=F)
 
+# Set up the target genes:
 genes = list(Clock = c(
 						LHY = 'AT1G01060.1',
 						TOC1 = 'AT5G61380.1',
@@ -127,15 +141,25 @@ genes = list(Clock = c(
 
 pdf('Targeted_timecourse_plots.pdf')
 
-load('Sleuth_exp.RData')
-sub_sample_info = droplevels(subset(sub_sample_info,Genotype == 'ColFRI' & Sampling.Day == '2014-02-26'))
-exp = exp[,sub_sample_info$sample]
+
+# These are the dulplicates of the previous setting:
+#load('Sleuth_exp.RData')
+#sub_sample_info = droplevels(subset(sub_sample_info,Genotype == 'ColFRI' & Sampling.Day == '2014-02-26'))
+#exp = exp[,sub_sample_info$sample]
+
+
+# Set up the color function (but why?)
+# Anyway, the colors Dan chose are good. Just use them!
 gg_color_hue <- function(n) {
   hues = seq(15, 375, length=n+1)
   hcl(h=hues, l=65, c=100)[1:n]
 }
+# These are checking the colors (will be used in the for loop below.)
 cols = gg_color_hue(2)
 cols = c(gg_color_hue(2)[1],NA)
+
+
+# Plots!
 for(group in genes){
 	plots = list()
 	cols = gg_color_hue(2)
@@ -150,10 +174,16 @@ for(group in genes){
 	print(plot_grid(plotlist = plots))
 }
 
+
+###### The other plots:
+
 load('Sleuth_exp.RData')
 
 sub_sample_info = droplevels(subset(sub_sample_info,Genotype == 'Col' & Sampling.Day == '2014-02-26'))
 exp = exp[,sub_sample_info$sample]
+
+
+# Photoperiod only:
 group = genes$Photoperiod
 plots = list()
 	cols = gg_color_hue(2)
@@ -163,6 +193,7 @@ plots = list()
 dev.off()
 
 
+# Plots for clock genes:
 clock_genes = c(
 						LHY = 'AT1G01060.1',
 						CCA1 = 'AT2G46830.2',

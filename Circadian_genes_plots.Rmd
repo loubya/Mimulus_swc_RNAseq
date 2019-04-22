@@ -49,6 +49,7 @@ d0_filterByExpr <- calcNormFactors(d0_filterByExpr)
 ```
 
 
+
 # 2. Subset the data
 ```{r}
 genes <- c("Migut.N01518.v2.0",
@@ -56,8 +57,8 @@ genes <- c("Migut.N01518.v2.0",
            "Migut.F00152.v2.0", "Migut.F00987.v2.0",
            "Migut.L01650.v2.0", "Migut.J00402.v2.0")
 
-cpm_GCfiltered <- as.data.frame(cpm(d_GC))
-pre_target<-cpm_GCfiltered[row.names(cpm_GCfiltered)%in%genes,]
+cpm_filtered <- as.data.frame(cpm(d0_filterByExpr))
+pre_target<-cpm_filtered [row.names(cpm_filtered )%in%genes,]
 
 # transpose
 target <- transpose(pre_target)
@@ -67,10 +68,11 @@ colnames(target) <- rownames(pre_target)
 rownames(target) <- colnames(pre_target)
 
 
-target$ZT<-ZT
+target$ZT<-rep(rep(ZT_vector, each=4),2)
 target$trt <- trt
 target$group <- group
 ```
+> In fact, I can transpose all -> choose the genes I want.
 
 
 # 3. Plots!
