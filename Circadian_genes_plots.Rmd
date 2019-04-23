@@ -82,7 +82,10 @@ target_genes <- target_genes %>% mutate(tmp="v2.0") %>% unite("M.gene",Mimulus_o
 Clock1_genes <- target_genes %>% filter(Type=="Clock1")
 Clock2_genes <- target_genes %>% filter(Type=="Clock2")
 Clock3_genes <- target_genes %>% filter(Type=="Clock3")
+Clock4_genes <- target_genes %>% filter(Type=="Clock4")
 temp <- target_genes %>% filter(Type=="temp")
+F_photoperiod <- target_genes %>% filter(Type=="F_photoperiod")
+
 ```
 
 
@@ -144,8 +147,8 @@ gg_color_hue <- function(n) {
   hcl(h=hues, l=65, c=100)[1:n]
 }
 
-# Checking the colors (will be used in the for loop below.)
-#cols = gg_color_hue(2)
+# Set up the colors (will be used in the for loop below.)
+cols = gg_color_hue(2)
 
 ```
 
@@ -179,10 +182,28 @@ for(i in 1:nrow(Clock3_genes)){
 ```
 
 
+### 4. Clock genes 4: 
+```{r}
+for(i in 1:nrow(Clock4_genes)){
+	p=timecourse_plot(pull(Clock4_genes[i,1]),pull(Clock4_genes[i,4]),cols)
+	print(p)
+	}
+```
+
+
 ### 5. temp: 
 ```{r}
 for(i in 1:nrow(temp)){
 	p=timecourse_plot(pull(temp[i,1]),pull(temp[i,4]),cols)
+	print(p)
+	}
+```
+
+
+### 6. F_photoperiod (flowering gene_photoperiod): 
+```{r}
+for(i in 1:nrow(F_photoperiod)){
+	p=timecourse_plot(pull(F_photoperiod[i,1]),pull(F_photoperiod[i,4]),cols)
 	print(p)
 	}
 ```
@@ -194,10 +215,7 @@ for(i in 1:nrow(temp)){
 
 
 
-
-
-
-
+#################################(Original method: Abandoned)###################
 
 
 
