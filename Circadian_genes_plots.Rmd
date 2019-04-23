@@ -5,7 +5,17 @@ The goal of this script is to (a) extract the info of some core clock genes and 
 ```{r}
 library(edgeR)
 library(data.table)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(readxl)
+```
 
+```{r}
+se = function(x) {
+    x = na.omit(x)
+    sd(x)/sqrt(length(x))
+}
 ```
 
 
@@ -47,6 +57,147 @@ dim(d0_filterByExpr)
 ```{r}
 d0_filterByExpr <- calcNormFactors(d0_filterByExpr)
 ```
+
+
+# 2. Data pre-processing
+My data:
+```{r}
+# Calculate cpm of the filtered data:
+cpm_filtered <- as.data.frame(cpm(d0_filterByExpr))
+
+# metadata
+m.metadata <- d0_filterByExpr$samples
+
+```
+
+
+Genes:
+```{r}
+target_genes <- read_excel("C:/Users/Po-Kai/Box Sync/Mimulus_swc_timecourse_2018/RNAseq/limma/circadian_gene_orthologs_v2.xlsx")
+
+target_genes <- target_genes %>% mutate(tmp="v2.0") %>% unite("M.gene",Mimulus_orthologs,tmp, sep = '.')
+
+
+# Grouping:
+Clock1_genes <- target_genes %>% filter(Type=="Clock1")
+Clock2_genes <- target_genes %>% filter(Type=="Clock2")
+Clock3_genes <- target_genes %>% filter(Type=="Clock3")
+temp <- target_genes %>% filter(Type=="temp")
+```
+
+
+The plotting function:
+```{r}
+# modify Dan's code of plotting
+timecourse_plot = function(gene,transcript,cols = c('red','blue'),fun=function(x) x,ifun = function(x) x){
+  # recover()
+  # Extract the expression level from the data set
+  y = t(cpm_filtered[transcript,])
+  
+  # Working space in m.metadata:
+  m.metadata$y = y
+  m.metadata$ZT = as.numeric(as.character(m.metadata$ZT))
+
+  
+  # Calculate the mean and se for the samples
+  means = tapply(fun(m.metadata$y),list(m.metadata$ZT,m.metadata$trt),mean)
+  ses = tapply(fun(m.metadata$y),list(m.metadata$ZT,m.metadata$trt),se)
+  means = melt(means)
+  colnames(means) = c('ZT','trt','mean')
+  ses = melt(ses)
+  colnames(ses) = c('ZT','trt','se')
+  mean_data = data.frame(means,ymin = means$mean-2*ses$se,ymax = means$mean+2*ses$se,stringsAsFactors=F)
+  mean_data$trt = as.character(mean_data$trt)
+  mean_data$mean = ifun(mean_data$mean)
+  mean_data$ymin = pmax(0,ifun(mean_data$ymin))
+  mean_data$ymax = ifun(mean_data$ymax)
+  # mean_data$ZT = factor(mean_data$ZT)
+  
+  # recover()
+  
+  # For the expression of Light and Dark:
+  light = data.frame(xmin = c(-10,0),xmax = c(0,15),ymin=c(-10,-10),ymax = rep(max(m.metadata$y,mean_data$ymax),2)-.1,light=factor(c(0,1)),Hour=1,Temp=1)
+  
+  
+  mean_data = subset(mean_data,trt %in% unique(trt)[!is.na(cols)])
+  
+  p = ggplot(m.metadata) + ggtitle(paste(gene,transcript, sep="_"))
+  p = p + geom_rect(data=light,aes(xmin=xmin,xmax=xmax,ymin=ymin,ymax=ymax,fill=light)) + scale_fill_manual(values=c('0'='grey50','1'=NA))
+  p = p + geom_point(aes(x = ZT,y=y,color = trt)) + scale_color_manual(values=cols)
+  p = p + geom_ribbon(data=mean_data,aes(x=ZT,y=mean,ymin = ymin,ymax=ymax, linetype=NA,group = trt),alpha = .2)
+  p = p + geom_line(data=mean_data,aes(x=ZT,y=mean,color=trt)) 
+  #p = p + xlim(c(-10,14)) + ylim(c(0,NA)) + theme(legend.position="none") 
+  # temporarily block this line
+  
+  class(p) = 'ggplot'
+  return(p)		
+}	
+```
+
+
+Set up the colors for the curves:
+```{r}
+# Set up the color function (but why?)
+# Anyway, the colors Dan chose are good. Just use them!
+gg_color_hue <- function(n) {
+  hues = seq(15, 375, length=n+1)
+  hcl(h=hues, l=65, c=100)[1:n]
+}
+
+# Checking the colors (will be used in the for loop below.)
+#cols = gg_color_hue(2)
+
+```
+
+
+#3. Plotting!
+
+### 1. Clock genes 1:
+```{r}
+for(i in 1:nrow(Clock1_genes)){
+	p=timecourse_plot(pull(Clock1_genes[i,1]),pull(Clock1_genes[i,4]),cols)
+	print(p)
+	}
+```
+
+
+### 2. Clock genes 2: 
+```{r}
+for(i in 1:nrow(Clock2_genes)){
+	p=timecourse_plot(pull(Clock2_genes[i,1]),pull(Clock2_genes[i,4]),cols)
+	print(p)
+	}
+```
+
+
+### 3. Clock genes 3: 
+```{r}
+for(i in 1:nrow(Clock3_genes)){
+	p=timecourse_plot(pull(Clock3_genes[i,1]),pull(Clock3_genes[i,4]),cols)
+	print(p)
+	}
+```
+
+
+### 5. temp: 
+```{r}
+for(i in 1:nrow(temp)){
+	p=timecourse_plot(pull(temp[i,1]),pull(temp[i,4]),cols)
+	print(p)
+	}
+```
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
