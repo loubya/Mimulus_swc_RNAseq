@@ -142,6 +142,12 @@ genes = list(Clock = c(
 pdf('Targeted_timecourse_plots.pdf')
 
 
+# HEMERA
+genes = list( Temp = c(HEMERA='AT2G34640.1'))
+
+
+
+
 # These are the dulplicates of the previous setting:
 #load('Sleuth_exp.RData')
 #sub_sample_info = droplevels(subset(sub_sample_info,Genotype == 'ColFRI' & Sampling.Day == '2014-02-26'))
