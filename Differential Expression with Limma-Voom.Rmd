@@ -25,7 +25,8 @@ library(RColorBrewer)
 
 ### Read in the counts table
 ```{r}
-counts <- read.delim("C:/Users/Po-Kai/Dropbox/Working/Mimulus_project/RNAseq/all_counts.txt", row.names = 1)
+#counts <- read.delim("C:/Users/Po-Kai/Dropbox/Working/Mimulus_project/RNAseq/all_counts.txt", row.names = 1)
+counts <- read.delim("C:/Users/Po-Kai/Box Sync/Mimulus_swc_timecourse_2018/RNAseq/all_counts.txt", row.names = 1)
 
 head(counts)
 ```
@@ -47,7 +48,9 @@ dim(d0)
 # Add sample-level info:
 d0$samples$group <- as.factor(c(paste("c",rep(1:9, each=4), sep=""),paste("f",rep(1:9, each=4), sep="")))
 
-ZT_vector <- c(14,17,20,23,2,5,8,11,14)
+#ZT_vector <- c(14,17,20,23,2,5,8,11,14)
+#20190501: Rename the ZT_vector
+ZT_vector <- c(-10,-7,-4,-1,2,5,8,11,14)
 d0$samples$ZT <- rep(rep(ZT_vector, each=4),2)
 
 d0$samples$trt <- as.factor(c(rep(c("c","f"),each=36)))
@@ -611,3 +614,127 @@ y_FBE <- voom(d0_filterByExpr, mm, plot = T)
 
 
 2. lcpm and cpm provide different flavor using the same data. Both are reasonable for my case. So be aware when trying to get some conclusions from the plots!
+
+#
+Testing
+```{r}
+d0_filterByExpr$samples$ZT <- as.factor(d0_filterByExpr$samples$ZT)
+
+mm2 <- model.matrix(~0+temp*time)
+
+colnames(mm2)
+
+y_Z.t <- voom(d0_filterByExpr, mm2, plot = T)
+
+
+```
+
+
+# Try the spline function first:
+```{r}
+# Generate the spline
+library(splines)
+X <- ns(as.numeric(d0_filterByExpr$samples$ZT), df=5)
+
+trt <- factor(d0_filterByExpr$samples$trt)
+
+ns.design <- model.matrix(~trt*X)
+
+
+v.ns <- voom(d0_filterByExpr,ns.design,plot=T)
+fit.ns <- lmFit(v.ns,ns.design)
+fit.ns <- eBayes(fit.ns)
+
+# Final model: Mean-variance trend
+plotSA(fit.ns)
+
+# Remember to set the coef so that you can focus on the difference in the curves between trts
+topTable(fit.ns,coef=8:12)
+DEG_ns <- topTable(fit.ns,coef=8:12, n=Inf)
+table(DEG_ns[,"adj.P.Val"] < 0.05)
+nrow(topTable(fit.ns,coef=8:12,p.value=0.05, n=Inf))
+#
+#results <- decideTests(fit.ns)
+#vennDiagram(results)
+#summary(results)
+# For the test with the fitted spline curves, you cannot interpret the individual logFC columns in the toptable or in the summary. These are simply mathematically defined basis vectors for the spline curve -- they have no meaningful interpretation as individual columns.
+```
+
+
+```{r}
+anno <- read.delim("C:/Users/Po-Kai/Box Sync/Mimulus_info/Mguttatus_256_v2.0.annotation_info.txt")
+```
+
+
+```{r}
+GO <- topTable(fit.ns,coef=8:12,p.value=0.05, n=Inf)
+gnames <- rownames(GO)
+
+GO <- data.frame(substr(gnames, 1, nchar(gnames) - 5))
+
+write.csv(GO, file = 'the_genes.csv')
+```
+
+
+# Try the spline function first:
+```{r}
+# Generate the spline
+library(splines)
+X <- ns(as.numeric(d0_filterByExpr$samples$ZT), df=3)
+
+trt <- factor(d0_filterByExpr$samples$trt)
+
+ns.design <- model.matrix(~trt*X)
+
+
+v.ns <- voom(d0_filterByExpr,ns.design,plot=T)
+fit.ns <- lmFit(v.ns,ns.design)
+fit.ns <- eBayes(fit.ns)
+
+# Final model: Mean-variance trend
+plotSA(fit.ns)
+
+# Remember to set the coef so that you can focus on the difference in the curves between trts
+topTable(fit.ns,coef=6:8)
+DEG_ns <- topTable(fit.ns,coef=6:8, n=Inf)
+table(DEG_ns[,"adj.P.Val"] < 0.05)
+nrow(topTable(fit.ns,coef=6:8,p.value=0.05, n=Inf))
+#
+#results <- decideTests(fit.ns)
+#vennDiagram(results)
+#summary(results)
+# For the test with the fitted spline curves, you cannot interpret the individual logFC columns in the toptable or in the summary. These are simply mathematically defined basis vectors for the spline curve -- they have no meaningful interpretation as individual columns.
+```
+
+
+```{r}
+GO <- topTable(fit.ns,coef=6:8,p.value=0.05, n=Inf)
+gnames <- rownames(GO)
+
+GO <- data.frame(substr(gnames, 1, nchar(gnames) - 5))
+
+write.csv(GO, file = 'the_genes3.csv')
+
+
+"Migut.N01518" %in% GO$substr.gnames..1..nchar.gnames....5.
+```
+
+
+
+```{r}
+converting <- read.delim("C:/Users/Po-Kai/Box Sync/Mimulus_info/plantregmap/Mgu_id_mapping.txt")
+
+GO_terms <- read.delim("C:/Users/Po-Kai/Box Sync/Mimulus_info/plantregmap/Mgu_GO_annotation")
+
+terms <- GO_terms[,c(1,2)]
+
+write.csv(terms, file = 'terms.csv')
+
+target_list = terms[terms$Gene_id %in% GO$substr.gnames..1..nchar.gnames....5.,]
+
+write.csv(target_list, file = 'target_list.csv')
+```
+
+
+
+
