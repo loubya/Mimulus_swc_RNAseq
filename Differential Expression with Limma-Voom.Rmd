@@ -389,6 +389,7 @@ condition <- rep (c("c","f"), each = 36)
 
 
 # Extract the GI data:
+# Simply modify here and you can choose using cpm or lcpm!
 GI_data <- as.data.frame(t(lcpm_filtered[GI,]))
 GI_data <- cbind(GI_data,ZT,condition)
 
@@ -615,8 +616,8 @@ y_FBE <- voom(d0_filterByExpr, mm, plot = T)
 
 2. lcpm and cpm provide different flavor using the same data. Both are reasonable for my case. So be aware when trying to get some conclusions from the plots!
 
-#
-Testing
+### Testing the different model:
+I'd like to check the voom plot using the interaction of temp*time rather than the goup used previously.
 ```{r}
 d0_filterByExpr$samples$ZT <- as.factor(d0_filterByExpr$samples$ZT)
 
@@ -628,83 +629,160 @@ y_Z.t <- voom(d0_filterByExpr, mm2, plot = T)
 
 
 ```
+It seems the same as using the group directly?
+Anyway, I will not use neither models because I have time course data.
 
 
-# Try the spline function first:
+# 6. Time course differential expression analysis: fitting natural splines first!
+Analyzing my data by ???tting a temporal trend using a regression spline.
+
+1. Try df=5:
 ```{r}
 # Generate the spline
 library(splines)
-X <- ns(as.numeric(d0_filterByExpr$samples$ZT), df=5)
 
+
+#X <- ns(as.numeric(d0_filterByExpr$samples$ZT), df=5)
+# Use the ZT_v:
+ZT_v <- rep(rep(c(14,17,20,23,2,5,8,11,14),each=4),2)
+X <- ns(ZT_v, df=5)
 trt <- factor(d0_filterByExpr$samples$trt)
 
+# Pass the spline based model to the design matrix:
 ns.design <- model.matrix(~trt*X)
 
 
+# voom transformation using the design matrix:
 v.ns <- voom(d0_filterByExpr,ns.design,plot=T)
+
+
+# Linear modeling:
 fit.ns <- lmFit(v.ns,ns.design)
 fit.ns <- eBayes(fit.ns)
 
-# Final model: Mean-variance trend
+
+# Final model: Mean-variance trend:
 plotSA(fit.ns)
 
-# Remember to set the coef so that you can focus on the difference in the curves between trts
+
+# Remember to set the coef so that you can focus on the difference in the curves between trts:
+# Check the top 10 genes:
 topTable(fit.ns,coef=8:12)
+# Exract all the differentially expressed genes:
 DEG_ns <- topTable(fit.ns,coef=8:12, n=Inf)
 table(DEG_ns[,"adj.P.Val"] < 0.05)
 nrow(topTable(fit.ns,coef=8:12,p.value=0.05, n=Inf))
+
+
 #
 #results <- decideTests(fit.ns)
 #vennDiagram(results)
 #summary(results)
 # For the test with the fitted spline curves, you cannot interpret the individual logFC columns in the toptable or in the summary. These are simply mathematically defined basis vectors for the spline curve -- they have no meaningful interpretation as individual columns.
 ```
+Using df=5, I found 1164 genes expressed differntly between c and f conditions.
 
 
 ```{r}
-anno <- read.delim("C:/Users/Po-Kai/Box Sync/Mimulus_info/Mguttatus_256_v2.0.annotation_info.txt")
+GO.5 <- topTable(fit.ns,coef=8:12,p.value=0.05, n=Inf)
+gnames <- rownames(GO.5)
+
+GO.5 <- data.frame(substr(gnames, 1, nchar(gnames) - 5))
+
+write.csv(GO.5, file = 'the_genes_df5.csv')
 ```
 
 
+2. Try df=4:
 ```{r}
-GO <- topTable(fit.ns,coef=8:12,p.value=0.05, n=Inf)
+# Generate the spline
+library(splines)
+
+
+#X <- ns(as.numeric(d0_filterByExpr$samples$ZT), df=4)
+# Use the ZT_v:
+ZT_v <- rep(rep(c(14,17,20,23,2,5,8,11,14),each=4),2)
+X <- ns(ZT_v, df=4)
+trt <- factor(d0_filterByExpr$samples$trt)
+
+# Pass the spline based model to the design matrix:
+ns.design <- model.matrix(~trt*X)
+
+
+# voom transformation using the design matrix:
+v.ns <- voom(d0_filterByExpr,ns.design,plot=T)
+
+
+# Linear modeling:
+fit.ns <- lmFit(v.ns,ns.design)
+fit.ns <- eBayes(fit.ns)
+
+
+# Final model: Mean-variance trend:
+plotSA(fit.ns)
+
+
+# Remember to set the coef so that you can focus on the difference in the curves between trts:
+# Check the top 10 genes:
+topTable(fit.ns,coef=7:10)
+# Exract all the differentially expressed genes:
+DEG_ns <- topTable(fit.ns,coef=7:10, n=Inf)
+table(DEG_ns[,"adj.P.Val"] < 0.05)
+nrow(topTable(fit.ns,coef=7:10,p.value=0.05, n=Inf))
+
+```
+Using df=4, I found 1302 genes expressed differntly between c and f conditions.
+
+
+```{r}
+GO <- topTable(fit.ns,coef=7:10,p.value=0.05, n=Inf)
 gnames <- rownames(GO)
 
 GO <- data.frame(substr(gnames, 1, nchar(gnames) - 5))
 
-write.csv(GO, file = 'the_genes.csv')
+write.csv(GO, file = 'the_genes_df4.csv')
 ```
 
 
-# Try the spline function first:
+3. Try df=3:
 ```{r}
 # Generate the spline
 library(splines)
-X <- ns(as.numeric(d0_filterByExpr$samples$ZT), df=3)
 
+
+#X <- ns(as.numeric(d0_filterByExpr$samples$ZT), df=3)
+# Use the ZT_v:
+ZT_v <- rep(rep(c(14,17,20,23,2,5,8,11,14),each=4),2)
+X <- ns(ZT_v, df=3)
 trt <- factor(d0_filterByExpr$samples$trt)
 
+# Pass the spline based model to the design matrix:
 ns.design <- model.matrix(~trt*X)
 
 
+# voom transformation using the design matrix:
 v.ns <- voom(d0_filterByExpr,ns.design,plot=T)
+
+
+# Linear modeling:
 fit.ns <- lmFit(v.ns,ns.design)
 fit.ns <- eBayes(fit.ns)
 
-# Final model: Mean-variance trend
+
+# Final model: Mean-variance trend:
 plotSA(fit.ns)
 
-# Remember to set the coef so that you can focus on the difference in the curves between trts
+
+# Remember to set the coef so that you can focus on the difference in the curves between trts:
+# Check the top 10 genes:
 topTable(fit.ns,coef=6:8)
+# Exract all the differentially expressed genes:
 DEG_ns <- topTable(fit.ns,coef=6:8, n=Inf)
 table(DEG_ns[,"adj.P.Val"] < 0.05)
 nrow(topTable(fit.ns,coef=6:8,p.value=0.05, n=Inf))
-#
-#results <- decideTests(fit.ns)
-#vennDiagram(results)
-#summary(results)
-# For the test with the fitted spline curves, you cannot interpret the individual logFC columns in the toptable or in the summary. These are simply mathematically defined basis vectors for the spline curve -- they have no meaningful interpretation as individual columns.
+
 ```
+Using df=3, I found 1551 genes expressed differntly between c and f conditions.
 
 
 ```{r}
@@ -713,27 +791,65 @@ gnames <- rownames(GO)
 
 GO <- data.frame(substr(gnames, 1, nchar(gnames) - 5))
 
-write.csv(GO, file = 'the_genes3.csv')
+write.csv(GO, file = 'the_genes_df3.csv')
 
 
-"Migut.N01518" %in% GO$substr.gnames..1..nchar.gnames....5.
+# Checking if a specific gene is in the list:
+#"Migut.N01518" %in% GO$substr.gnames..1..nchar.gnames....5.
+
 ```
 
 
-
+4. Preparing the list for GO enrichment analysis:
 ```{r}
-converting <- read.delim("C:/Users/Po-Kai/Box Sync/Mimulus_info/plantregmap/Mgu_id_mapping.txt")
-
+# Total GO terms:
 GO_terms <- read.delim("C:/Users/Po-Kai/Box Sync/Mimulus_info/plantregmap/Mgu_GO_annotation")
 
-terms <- GO_terms[,c(1,2)]
 
-write.csv(terms, file = 'terms.csv')
+# Extract the total expressed genes (the background of GO enrichment analysis):
+express.genes <- substr(rownames(d0_filterByExpr$counts), 1, nchar(rownames(d0_filterByExpr$counts)) - 5)
 
-target_list = terms[terms$Gene_id %in% GO$substr.gnames..1..nchar.gnames....5.,]
+express.bg <- GO_terms[GO_terms$Gene_id %in% express.genes,]
 
-write.csv(target_list, file = 'target_list.csv')
+
+# Do the reverse 
+express.genes.match <- express.genes[express.genes %in% express.bg$Gene_id] 
+
+
+bg <- express.bg[,c(1,2)]
+write.csv(bg, file = 'GO_bg.csv')
+
+
+target_list_df5 = express.bg[express.bg$Gene_id %in% GO.5$substr.gnames..1..nchar.gnames....5.,]
+write.csv(target_list_df5, file = 'target_list_df5.csv')
+
+
+# Check from the total gene list:
+#target_list_df5.2 = GO_terms[GO_terms$Gene_id %in% GO.5$substr.gnames..1..nchar.gnames....5.,]
+
+
 ```
+Only 14525/17912 of the expressed genes are in the GO_terms.
+Only 951/1164 of the DEG are in the express.bg. (I also check the total gene list.)
+
+
+
+Check some data:
+```{r}
+# Annotation from Phytozome:
+anno <- read.delim("C:/Users/Po-Kai/Box Sync/Mimulus_info/Mguttatus_256_v2.0.annotation_info.txt")
+
+# ID converting list:
+converting <- read.delim("C:/Users/Po-Kai/Box Sync/Mimulus_info/plantregmap/Mgu_id_mapping.txt")
+
+```
+
+
+
+
+
+
+
 
 
 
