@@ -635,8 +635,9 @@ Anyway, I will not use neither models because I have time course data.
 
 # 6. Time course differential expression analysis: fitting natural splines first!
 Analyzing my data by ???tting a temporal trend using a regression spline.
+> 20190509: This design is not reasonable. Use the periodic B-spline instead!
 
-1. Try df=5:
+1. Try df=5: 
 ```{r}
 # Generate the spline
 library(splines)
@@ -689,118 +690,96 @@ gnames <- rownames(GO.5)
 
 GO.5 <- data.frame(substr(gnames, 1, nchar(gnames) - 5))
 
-write.csv(GO.5, file = 'the_genes_df5.csv')
+#write.csv(GO.5, file = 'the_genes_df5.csv')
 ```
+**Note** Using the `ZT_v <- rep(rep(c(14,17,20,23,2,5,8,11,14),each=4),2)` is not reasonable because it is still linear but not periodic. What it means is: I have 2 sets of 14 h samples, and my data range from 2-22h.
+
+> Use `X <- ns(as.numeric(d0_filterByExpr$samples$ZT), df=5)` is more reasonable! (but still not periodic...)
+
+> (20190509) I deleted the codes for df=4 and df=3 I perviously had. Also, I modified the export codes (original 4th section) and attatched them to the pbs below.
 
 
-2. Try df=4:
+# 7. Time course differential expression analysis: fitting periodic B splines!
+
+#### Try df=5:
+1. Fit the model:  
 ```{r}
-# Generate the spline
-library(splines)
+library(pbs)
 
-
-#X <- ns(as.numeric(d0_filterByExpr$samples$ZT), df=4)
-# Use the ZT_v:
-ZT_v <- rep(rep(c(14,17,20,23,2,5,8,11,14),each=4),2)
-X <- ns(ZT_v, df=4)
+# Remember to check if the first point is equal to the last one! (periodic)
+X.p <- pbs(as.numeric(d0_filterByExpr$samples$ZT), df = 5)
 trt <- factor(d0_filterByExpr$samples$trt)
 
+
 # Pass the spline based model to the design matrix:
-ns.design <- model.matrix(~trt*X)
+# original:
+#pbs.design <- model.matrix(~trt*X.p)
+# Dan's code: the arrangement is better!
+pbs.design <- model.matrix(~X.p+trt+trt:X.p)
 
 
 # voom transformation using the design matrix:
-v.ns <- voom(d0_filterByExpr,ns.design,plot=T)
+v.pbs <- voom(d0_filterByExpr,pbs.design,plot=T)
 
 
 # Linear modeling:
-fit.ns <- lmFit(v.ns,ns.design)
-fit.ns <- eBayes(fit.ns)
+fit.pbs <- lmFit(v.pbs,pbs.design)
+fit.pbs <- eBayes(fit.pbs)
 
 
 # Final model: Mean-variance trend:
-plotSA(fit.ns)
+plotSA(fit.pbs)
+```
 
 
+2. Test: if the curves are different between 2 conditions?
+> Do not consider the intercept.
+
+```{r}
 # Remember to set the coef so that you can focus on the difference in the curves between trts:
 # Check the top 10 genes:
-topTable(fit.ns,coef=7:10)
+topTable(fit.pbs,coef=c(8:12))
 # Exract all the differentially expressed genes:
-DEG_ns <- topTable(fit.ns,coef=7:10, n=Inf)
-table(DEG_ns[,"adj.P.Val"] < 0.05)
-nrow(topTable(fit.ns,coef=7:10,p.value=0.05, n=Inf))
+DEG_pbs_c <- topTable(fit.pbs,coef=8:12, n=Inf)
+table(DEG_pbs_c[,"adj.P.Val"] < 0.05)
+
+
+# Total differentially expressed genes:
+GO.p5 <- topTable(fit.pbs,coef=8:12,p.value=0.05, n=Inf)
+gnames <- rownames(GO.p5)
+
+glist_p5.c <- data.frame(substr(gnames, 1, nchar(gnames) - 5))
+#write.csv(GO.p5, file = 'the_genes_pbs_df5.csv')
+
 
 ```
-Using df=4, I found 1302 genes expressed differntly between c and f conditions.
+Using df=5, I found 1029 genes expressed differntly between c and f conditions.
 
+
+3. Test: if the curves and intercepts are different between 2 conditions?
+> Do consider the intercept.
 
 ```{r}
-GO <- topTable(fit.ns,coef=7:10,p.value=0.05, n=Inf)
-gnames <- rownames(GO)
-
-GO <- data.frame(substr(gnames, 1, nchar(gnames) - 5))
-
-write.csv(GO, file = 'the_genes_df4.csv')
-```
-
-
-3. Try df=3:
-```{r}
-# Generate the spline
-library(splines)
-
-
-#X <- ns(as.numeric(d0_filterByExpr$samples$ZT), df=3)
-# Use the ZT_v:
-ZT_v <- rep(rep(c(14,17,20,23,2,5,8,11,14),each=4),2)
-X <- ns(ZT_v, df=3)
-trt <- factor(d0_filterByExpr$samples$trt)
-
-# Pass the spline based model to the design matrix:
-ns.design <- model.matrix(~trt*X)
-
-
-# voom transformation using the design matrix:
-v.ns <- voom(d0_filterByExpr,ns.design,plot=T)
-
-
-# Linear modeling:
-fit.ns <- lmFit(v.ns,ns.design)
-fit.ns <- eBayes(fit.ns)
-
-
-# Final model: Mean-variance trend:
-plotSA(fit.ns)
-
-
 # Remember to set the coef so that you can focus on the difference in the curves between trts:
 # Check the top 10 genes:
-topTable(fit.ns,coef=6:8)
+topTable(fit.pbs,coef=c(7:12))
 # Exract all the differentially expressed genes:
-DEG_ns <- topTable(fit.ns,coef=6:8, n=Inf)
-table(DEG_ns[,"adj.P.Val"] < 0.05)
-nrow(topTable(fit.ns,coef=6:8,p.value=0.05, n=Inf))
+DEG_pbs_ci <- topTable(fit.pbs,coef=7:12, n=Inf)
+table(DEG_pbs_ci[,"adj.P.Val"] < 0.05)
+
+
+# Total differentially expressed genes:
+GO.p5.ci <- topTable(fit.pbs,coef=7:12,p.value=0.05, n=Inf)
+gnames.ci <- rownames(GO.p5.ci)
+
+glist_p5.ci <- data.frame(substr(gnames.ci, 1, nchar(gnames) - 5))
 
 ```
-Using df=3, I found 1551 genes expressed differntly between c and f conditions.
+Using df=5, I found 2066 genes expressed differntly if considering both the curves and intercepts.
+It makes sense that I found more genes here because it also considered the difference of trt.
 
 
-```{r}
-GO <- topTable(fit.ns,coef=6:8,p.value=0.05, n=Inf)
-gnames <- rownames(GO)
-
-GO <- data.frame(substr(gnames, 1, nchar(gnames) - 5))
-
-write.csv(GO, file = 'the_genes_df3.csv')
-
-
-# Checking if a specific gene is in the list:
-#"Migut.N01518" %in% GO$substr.gnames..1..nchar.gnames....5.
-
-```
-
-
-4. Preparing the list for GO enrichment analysis:
+4. Export the data for GO enrichment analysis::
 ```{r}
 # Total GO terms:
 GO_terms <- read.delim("C:/Users/Po-Kai/Box Sync/Mimulus_info/plantregmap/Mgu_GO_annotation")
@@ -808,32 +787,35 @@ GO_terms <- read.delim("C:/Users/Po-Kai/Box Sync/Mimulus_info/plantregmap/Mgu_GO
 
 # Extract the total expressed genes (the background of GO enrichment analysis):
 express.genes <- substr(rownames(d0_filterByExpr$counts), 1, nchar(rownames(d0_filterByExpr$counts)) - 5)
-
 express.bg <- GO_terms[GO_terms$Gene_id %in% express.genes,]
-
 
 # Do the reverse 
 express.genes.match <- express.genes[express.genes %in% express.bg$Gene_id] 
 
 
+# Final list of bg:
 bg <- express.bg[,c(1,2)]
-write.csv(bg, file = 'GO_bg.csv')
+#write.csv(bg, file = 'GO_bg.csv')
 
 
-target_list_df5 = express.bg[express.bg$Gene_id %in% GO.5$substr.gnames..1..nchar.gnames....5.,]
-write.csv(target_list_df5, file = 'target_list_df5.csv')
+# Export the target genes:
+# curve shape: 
+tlist_df5.c = express.bg[express.bg$Gene_id %in% glist_p5.c$substr.gnames..1..nchar.gnames....5.,]
+#write.csv(tlist_df5.c , file = 'target_list_df5.csv')
 
-
-# Check from the total gene list:
-#target_list_df5.2 = GO_terms[GO_terms$Gene_id %in% GO.5$substr.gnames..1..nchar.gnames....5.,]
-
+# curve shape + intercept:
+tlist_df5.ci = express.bg[express.bg$Gene_id %in% glist_p5.ci$substr.gnames.ci..1..nchar.gnames....5.,]
 
 ```
 Only 14525/17912 of the expressed genes are in the GO_terms.
-Only 951/1164 of the DEG are in the express.bg. (I also check the total gene list.)
+Considering only curve shape: Only 851/1029 of the DEG are in the express.bg. (I also check the total gene list.)
+Considering curve shape + intercept: Only 1705/2066 of the DEG are in the express.bg. 
 
 
 
+
+
+###################################
 Check some data:
 ```{r}
 # Annotation from Phytozome:
@@ -843,13 +825,6 @@ anno <- read.delim("C:/Users/Po-Kai/Box Sync/Mimulus_info/Mguttatus_256_v2.0.ann
 converting <- read.delim("C:/Users/Po-Kai/Box Sync/Mimulus_info/plantregmap/Mgu_id_mapping.txt")
 
 ```
-
-
-
-
-
-
-
 
 
 
